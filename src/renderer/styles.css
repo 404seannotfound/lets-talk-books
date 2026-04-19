@@ -128,8 +128,15 @@ a { color: #58a6ff; }
 }
 .viz-controls input { width: 220px; }
 
-.viz-content { height: calc(100vh - 220px); overflow: auto; padding: 16px 32px; }
+.viz-split { display: flex; height: calc(100vh - 220px); }
+.viz-content { flex: 1; overflow: auto; padding: 16px 32px; min-width: 0; }
 .viz-content svg { display: block; }
+#book-panel.book-panel {
+  max-height: calc(100vh - 220px);
+  height: calc(100vh - 220px);
+  width: 420px;
+  flex-shrink: 0;
+}
 
 .axis text { fill: #8b949e; font-size: 11px; }
 .axis line, .axis path { stroke: #21262d; }

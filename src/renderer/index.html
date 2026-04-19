@@ -5,6 +5,7 @@
 <title>Let's Talk Books</title>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="book-panel.css">
 </head>
 <body>
 
@@ -171,34 +172,43 @@
     </div>
   </div>
 
-  <div class="viz-content">
-    <div id="view-authorflow">
-      <div class="author-flow-layout">
-        <div class="author-sidebar" id="author-sidebar">
-          <div class="sidebar-search"><input type="text" id="sidebar-filter" placeholder="Filter authors..."></div>
-          <div class="sidebar-actions">
-            <button class="qbtn" id="btn-top20">Top 20</button>
-            <button class="qbtn" id="btn-top50">Top 50</button>
-            <button class="qbtn" id="btn-all">All</button>
-            <button class="qbtn" id="btn-none">None</button>
+  <div class="viz-split">
+    <div class="viz-content">
+      <div id="view-authorflow">
+        <div class="author-flow-layout">
+          <div class="author-sidebar" id="author-sidebar">
+            <div class="sidebar-search"><input type="text" id="sidebar-filter" placeholder="Filter authors..."></div>
+            <div class="sidebar-actions">
+              <button class="qbtn" id="btn-top20">Top 20</button>
+              <button class="qbtn" id="btn-top50">Top 50</button>
+              <button class="qbtn" id="btn-all">All</button>
+              <button class="qbtn" id="btn-none">None</button>
+            </div>
+            <div id="sidebar-genres"></div>
           </div>
-          <div id="sidebar-genres"></div>
+          <div class="author-flow-main"><div id="authorflow-chart"></div></div>
         </div>
-        <div class="author-flow-main"><div id="authorflow-chart"></div></div>
+      </div>
+      <div id="view-stream" style="display:none">
+        <div id="genre-legend" class="legend"></div>
+        <div id="stream-chart"></div>
+      </div>
+      <div id="view-authors" style="display:none"><div id="author-timeline"></div></div>
+      <div id="view-series" style="display:none"><div id="series-timeline"></div></div>
+      <div id="view-authordots" style="display:none"><div id="authordots-chart"></div></div>
+    </div>
+    <div id="book-panel" class="book-panel">
+      <div class="panel-empty">
+        <div class="panel-empty-emoji">📚</div>
+        <div>Click any stream, row, or dot to see the books with links to Audible.</div>
       </div>
     </div>
-    <div id="view-stream" style="display:none">
-      <div id="genre-legend" class="legend"></div>
-      <div id="stream-chart"></div>
-    </div>
-    <div id="view-authors" style="display:none"><div id="author-timeline"></div></div>
-    <div id="view-series" style="display:none"><div id="series-timeline"></div></div>
-    <div id="view-authordots" style="display:none"><div id="authordots-chart"></div></div>
   </div>
 </div>
 
 <div class="tip" id="tooltip"></div>
 
+<script src="book-panel.js"></script>
 <script src="viz.js"></script>
 <script src="app.js"></script>
 </body>

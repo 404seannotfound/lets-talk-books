@@ -338,15 +338,22 @@ function renderAuthorFlow() {
     .attr('fill', d => authorColorMap[d.key] || '#58a6ff')
     .attr('opacity', 0.85)
     .attr('stroke', '#0d1117').attr('stroke-width', 0.3)
+    .style('cursor', 'pointer')
     .on('mouseover', function(evt, d) {
       paths.attr('opacity', 0.08);
       d3.select(this).attr('opacity', 1);
       const count = authorTotals[d.key];
       const genre = authorGenreCache[d.key] || '';
-      showTip(evt, `<div class="tt">${esc(d.key)}</div><div class="td">${count} books · ${genre}</div>`);
+      showTip(evt, `<div class="tt">${esc(d.key)}</div><div class="td">${count} books · ${genre} · click for books</div>`);
     })
     .on('mousemove', evt => tip.style('left',(evt.pageX+12)+'px').style('top',(evt.pageY-10)+'px'))
-    .on('mouseout', () => { paths.attr('opacity', 0.85); hideTip(); });
+    .on('mouseout', () => { paths.attr('opacity', 0.85); hideTip(); })
+    .on('click', function(evt, d) {
+      evt.stopPropagation();
+      const books = DATA.filter(b => b.authors.split(',').map(x => x.trim()).includes(d.key))
+        .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+      showBookPanel(books, `${d.key} · ${books.length} books`, authorColorMap[d.key] || '#58a6ff');
+    });
 
   // X axis
   svg.append('g').attr('class','axis').attr('transform',`translate(0,${height-margin.bottom})`)
@@ -400,8 +407,12 @@ function renderAuthorTimeline() {
     const books = DATA.filter(b=>b.authors.split(',').map(a=>a.trim()).includes(author)).sort((a,b)=>a.date.localeCompare(b.date));
     const seriesColors = getSeriesColorMap(books);
     const bandY = y(author), bandH = y.bandwidth();
-    svg.append('rect').attr('x',margin.left).attr('y',bandY).attr('width',width-margin.left-margin.right).attr('height',bandH).attr('fill',ai%2===0?'#0d1117':'#111620').attr('rx',3);
-    svg.append('text').attr('x',margin.left-8).attr('y',bandY+bandH/2).attr('text-anchor','end').attr('dominant-baseline','middle').attr('fill','#c9d1d9').attr('font-size',12).attr('font-weight',600).text(`${author} (${books.length})`);
+    const showAuthorBooks = () => {
+      const color = (Object.keys(seriesColors).length && seriesColors[Object.keys(seriesColors)[0]]) || '#58a6ff';
+      showBookPanel(books, `${author} · ${books.length} books`, color);
+    };
+    svg.append('rect').attr('x',margin.left).attr('y',bandY).attr('width',width-margin.left-margin.right).attr('height',bandH).attr('fill',ai%2===0?'#0d1117':'#111620').attr('rx',3).style('cursor','pointer').on('click',showAuthorBooks);
+    svg.append('text').attr('x',margin.left-8).attr('y',bandY+bandH/2).attr('text-anchor','end').attr('dominant-baseline','middle').attr('fill','#c9d1d9').attr('font-size',12).attr('font-weight',600).style('cursor','pointer').text(`${author} (${books.length})`).on('click',showAuthorBooks);
     if (books.length > 1) svg.append('line').attr('x1',x(new Date(books[0].date))).attr('x2',x(new Date(books[books.length-1].date))).attr('y1',bandY+bandH/2).attr('y2',bandY+bandH/2).attr('stroke','#21262d').attr('stroke-width',1);
     const sg = {};
     books.forEach(b => { if(b.series){if(!sg[b.series])sg[b.series]=[];sg[b.series].push(b);} });
@@ -416,7 +427,17 @@ function renderAuthorTimeline() {
       .attr('stroke',d=>d.series?seriesColors[d.series]:'#8b949e')
       .attr('stroke-width', d => d.is_finished ? 1 : 1.5)
       .attr('opacity', d => bookOpacity(d, d.series?0.95:0.7))
-      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
+      .style('cursor','pointer')
+      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip)
+      .on('click', (evt,d) => {
+        evt.stopPropagation();
+        if (d.series) {
+          const seriesBooks = books.filter(b => b.series === d.series).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+          showBookPanel(seriesBooks, `${d.series} (${author}) · ${seriesBooks.length} books`, seriesColors[d.series]);
+        } else {
+          showBookPanel([d], d.title, '#8b949e');
+        }
+      });
   });
 }
 
@@ -449,16 +470,25 @@ function renderSeriesTimeline() {
   seriesList.forEach((s,i)=>{
     const color=SERIES_PALETTE[i%SERIES_PALETTE.length];
     const bandY=y(s.name),bandH=y.bandwidth();
-    svg.append('rect').attr('x',margin.left).attr('y',bandY).attr('width',width-margin.left-margin.right).attr('height',bandH).attr('fill',i%2===0?'#0d1117':'#111620').attr('rx',2);
+    const openSeries = () => {
+      const author = s.books[0] && s.books[0].authors.split(',')[0].trim() || '';
+      showBookPanel(s.books, s.name, color, { groupBy: 'none' });
+      const panel = document.getElementById('book-panel');
+      const titleEl = panel && panel.querySelector('.panel-header .meta');
+      if (titleEl) titleEl.textContent = `${author} · ${s.count} books · ${s.books[0].date} → ${s.books[s.books.length-1].date}`;
+    };
+    svg.append('rect').attr('x',margin.left).attr('y',bandY).attr('width',width-margin.left-margin.right).attr('height',bandH).attr('fill',i%2===0?'#0d1117':'#111620').attr('rx',2).style('cursor','pointer').on('click',openSeries);
     const label=s.name.length>30?s.name.slice(0,28)+'…':s.name;
-    svg.append('text').attr('x',margin.left-6).attr('y',bandY+bandH/2).attr('text-anchor','end').attr('dominant-baseline','middle').attr('fill',color).attr('font-size',11).text(`${label} (${s.count})`);
-    if(s.books.length>1)svg.append('line').attr('x1',x(s.start)).attr('x2',x(s.end)).attr('y1',bandY+bandH/2).attr('y2',bandY+bandH/2).attr('stroke',color).attr('stroke-opacity',0.3).attr('stroke-width',3);
+    svg.append('text').attr('x',margin.left-6).attr('y',bandY+bandH/2).attr('text-anchor','end').attr('dominant-baseline','middle').attr('fill',color).attr('font-size',11).style('cursor','pointer').text(`${label} (${s.count})`).on('click',openSeries);
+    if(s.books.length>1)svg.append('line').attr('x1',x(s.start)).attr('x2',x(s.end)).attr('y1',bandY+bandH/2).attr('y2',bandY+bandH/2).attr('stroke',color).attr('stroke-opacity',0.3).attr('stroke-width',3).style('pointer-events','none');
     svg.selectAll(null).data(s.books).enter().append('circle').attr('class','author-dot')
       .attr('cx',d=>x(new Date(d.date))).attr('cy',bandY+bandH/2).attr('r',4)
       .attr('fill', d => d.is_finished ? color : 'none')
       .attr('stroke', color).attr('stroke-width', d => d.is_finished ? 0 : 1.5)
       .attr('opacity', d => bookOpacity(d, 0.9))
-      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
+      .style('cursor','pointer')
+      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip)
+      .on('click',(evt,d)=>{evt.stopPropagation();openSeries();});
   });
 }
 
@@ -485,10 +515,17 @@ function renderStreamChart() {
   const yS=d3.scaleLinear().domain([d3.min(series,s=>d3.min(s,d=>d[0])),d3.max(series,s=>d3.max(s,d=>d[1]))]).range([height-margin.bottom,margin.top]);
   const colorScale=d3.scaleOrdinal().domain(keys).range([...GENRE_PALETTE.slice(0,genres.length),'#30363d']);
   const area=d3.area().x((_,i)=>x(parseQ(qData[i]))).y0(d=>yS(d[0])).y1(d=>yS(d[1])).curve(d3.curveBasis);
-  const paths=svg.selectAll('.stream').data(series).enter().append('path').attr('class','stream').attr('d',area).attr('fill',d=>colorScale(d.key)).attr('opacity',0.85).attr('stroke','#0d1117').attr('stroke-width',0.5)
-    .on('mouseover',function(evt,d){paths.attr('opacity',0.12);d3.select(this).attr('opacity',1);showTip(evt,`<div class="tt">${d.key}</div><div class="td">${DATA.filter(b=>b.genre===d.key||(d.key==='Other'&&!genreSet.has(b.genre))).length} books</div>`);})
+  const booksInGenre = key => DATA.filter(b => b.genre===key || (key==='Other' && !genreSet.has(b.genre)))
+    .sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  const paths=svg.selectAll('.stream').data(series).enter().append('path').attr('class','stream').attr('d',area).attr('fill',d=>colorScale(d.key)).attr('opacity',0.85).attr('stroke','#0d1117').attr('stroke-width',0.5).style('cursor','pointer')
+    .on('mouseover',function(evt,d){paths.attr('opacity',0.12);d3.select(this).attr('opacity',1);showTip(evt,`<div class="tt">${d.key}</div><div class="td">${booksInGenre(d.key).length} books · click to see them</div>`);})
     .on('mousemove',evt=>tip.style('left',(evt.pageX+12)+'px').style('top',(evt.pageY-10)+'px'))
-    .on('mouseout',function(){const hl=document.getElementById('genre-highlight').value;paths.attr('opacity',hl?(d=>d.key===hl?1:0.1):0.85);hideTip();});
+    .on('mouseout',function(){const hl=document.getElementById('genre-highlight').value;paths.attr('opacity',hl?(d=>d.key===hl?1:0.1):0.85);hideTip();})
+    .on('click',function(evt,d){
+      evt.stopPropagation();
+      const books = booksInGenre(d.key);
+      showBookPanel(books, `${d.key} · ${books.length} books`, colorScale(d.key));
+    });
   svg.append('g').attr('class','axis').attr('transform',`translate(0,${height-margin.bottom})`).call(d3.axisBottom(x).ticks(d3.timeYear.every(2)).tickFormat(d3.timeFormat('%Y')));
   const legend=d3.select('#genre-legend');legend.selectAll('*').remove();
   keys.forEach(k=>{const item=legend.append('div').attr('class','legend-item').on('click',()=>{document.getElementById('genre-highlight').value=k;paths.attr('opacity',d=>d.key===k?1:0.1);});item.append('div').attr('class','legend-swatch').style('background',colorScale(k));item.append('span').text(k);});
@@ -516,14 +553,20 @@ function renderAuthorDots() {
     const books=DATA.filter(b=>b.authors.split(',').map(a=>a.trim()).includes(author)).sort((a,b)=>a.date.localeCompare(b.date));
     const seriesColors=getSeriesColorMap(books);
     const bandY=y(author),bandH=y.bandwidth();
-    svg.append('text').attr('x',margin.left-6).attr('y',bandY+bandH/2).attr('text-anchor','end').attr('dominant-baseline','middle').attr('fill','#8b949e').attr('font-size',11).text(author);
+    const openAuthor = () => {
+      const firstColor = Object.values(seriesColors)[0] || '#58a6ff';
+      showBookPanel(books, `${author} · ${books.length} books`, firstColor);
+    };
+    svg.append('text').attr('x',margin.left-6).attr('y',bandY+bandH/2).attr('text-anchor','end').attr('dominant-baseline','middle').attr('fill','#8b949e').attr('font-size',11).style('cursor','pointer').text(author).on('click',openAuthor);
     svg.selectAll(null).data(books).enter().append('circle').attr('class','author-dot')
       .attr('cx',d=>x(new Date(d.date))).attr('cy',bandY+bandH/2).attr('r',3.5)
       .attr('fill', d => d.is_finished ? (d.series?seriesColors[d.series]:NO_SERIES_COLOR) : 'none')
       .attr('stroke', d => d.series?seriesColors[d.series]:NO_SERIES_COLOR)
       .attr('stroke-width', d => d.is_finished ? 0 : 1.2)
       .attr('opacity', d => bookOpacity(d, d.series?0.9:0.5))
-      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
+      .style('cursor','pointer')
+      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip)
+      .on('click',(evt,d)=>{evt.stopPropagation();openAuthor();});
   });
 }
 

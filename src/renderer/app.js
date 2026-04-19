@@ -189,84 +189,87 @@ function wireSearch(inputId, resultId, matchFn) {
   });
 }
 
+function matchingBooks(q) {
+  return DATA.filter(b =>
+    b.title.toLowerCase().includes(q) ||
+    b.authors.toLowerCase().includes(q) ||
+    (b.series && b.series.toLowerCase().includes(q))
+  );
+}
+
 // Author Flow search
 wireSearch('af-search', 'af-search-result', (q, resultEl) => {
-  // Uses globals from viz.js: DATA, authorFlowEnabled
-  const paths = document.querySelectorAll('#authorflow-chart .stream');
-  if (!paths.length) { resultEl.textContent = ''; return; }
-  if (!q) {
-    paths.forEach(p => p.setAttribute('opacity', '0.85'));
-    resultEl.textContent = '';
-    return;
-  }
-  const matching = new Set();
-  DATA.forEach(b => {
-    if (b.title.toLowerCase().includes(q) ||
-        b.authors.toLowerCase().includes(q) ||
-        (b.series && b.series.toLowerCase().includes(q))) {
-      b.authors.split(',').forEach(a => {
-        a = a.trim();
-        if (a && authorFlowEnabled[a]) matching.add(a);
-      });
-    }
-  });
-  // Use d3 datum to check
-  d3.selectAll('#authorflow-chart .stream').each(function(d) {
-    this.setAttribute('opacity', matching.has(d.key) ? '1' : '0.06');
-  });
-  resultEl.textContent = matching.size ? `${matching.size} matching` : 'No matches';
-  resultEl.style.color = matching.size ? '#facc15' : '#8b949e';
-});
-
-// Genre Flow search
-wireSearch('gf-search', 'gf-search-result', (q, resultEl) => {
-  const paths = d3.selectAll('#stream-chart path');
+  const paths = d3.selectAll('#authorflow-chart .stream');
   if (!paths.size()) { resultEl.textContent = ''; return; }
   if (!q) {
     paths.attr('opacity', 0.85);
     resultEl.textContent = '';
+    resetBookPanel();
     return;
   }
-  const matchingGenres = new Set();
-  let matchCount = 0;
-  DATA.forEach(b => {
-    if (b.title.toLowerCase().includes(q) ||
-        b.authors.toLowerCase().includes(q) ||
-        (b.series && b.series.toLowerCase().includes(q))) {
-      matchingGenres.add(b.genre);
-      matchCount++;
-    }
+  const books = matchingBooks(q);
+  const matching = new Set();
+  books.forEach(b => {
+    b.authors.split(',').forEach(a => {
+      a = a.trim();
+      if (a && authorFlowEnabled[a]) matching.add(a);
+    });
   });
+  paths.attr('opacity', function(d) { return matching.has(d.key) ? 1 : 0.06; });
+  if (books.length) {
+    resultEl.textContent = `${books.length} book${books.length>1?'s':''} · ${matching.size} visible author${matching.size===1?'':'s'}`;
+    resultEl.style.color = '#facc15';
+    showBookPanel(books.sort((a,b)=>(a.date||'').localeCompare(b.date||'')),
+      `Search: "${document.getElementById('af-search').value}" · ${books.length} books`, '#facc15');
+  } else {
+    resultEl.textContent = 'No matches';
+    resultEl.style.color = '#8b949e';
+    resetBookPanel();
+  }
+});
+
+// Genre Flow search
+wireSearch('gf-search', 'gf-search-result', (q, resultEl) => {
+  const paths = d3.selectAll('#stream-chart .stream');
+  if (!paths.size()) { resultEl.textContent = ''; return; }
+  if (!q) {
+    paths.attr('opacity', 0.85);
+    resultEl.textContent = '';
+    resetBookPanel();
+    return;
+  }
+  const books = matchingBooks(q);
+  const matchingGenres = new Set(books.map(b => b.genre));
   paths.attr('opacity', function(d) {
-    // 'Other' catches anything not in top genres
-    return (matchingGenres.has(d.key) || (d.key === 'Other')) ? 1 : 0.06;
+    return (matchingGenres.has(d.key) || (d.key === 'Other' && books.some(b => !matchingGenres.has(b.genre)))) ? 1 : 0.06;
   });
-  resultEl.textContent = matchCount ? `${matchCount} books` : 'No matches';
-  resultEl.style.color = matchCount ? '#facc15' : '#8b949e';
+  if (books.length) {
+    resultEl.textContent = `${books.length} book${books.length>1?'s':''} across ${matchingGenres.size} genre${matchingGenres.size===1?'':'s'}`;
+    resultEl.style.color = '#facc15';
+    showBookPanel(books.sort((a,b)=>(a.date||'').localeCompare(b.date||'')),
+      `Search: "${document.getElementById('gf-search').value}" · ${books.length} books`, '#facc15');
+  } else {
+    resultEl.textContent = 'No matches';
+    resultEl.style.color = '#8b949e';
+    resetBookPanel();
+  }
 });
 
 // Series Timeline search
 wireSearch('series-search', 'series-search-result', (q, resultEl) => {
-  if (!q) {
-    d3.selectAll('#series-timeline circle').attr('opacity', 0.85);
-    d3.selectAll('#series-timeline text').attr('opacity', 1);
-    d3.selectAll('#series-timeline line').attr('opacity', 1);
-    resultEl.textContent = '';
-    return;
+  if (!q) { resultEl.textContent = ''; resetBookPanel(); return; }
+  const books = matchingBooks(q).filter(b => b.series);
+  const seriesSet = new Set(books.map(b => b.series));
+  if (books.length) {
+    resultEl.textContent = `${books.length} book${books.length>1?'s':''} in ${seriesSet.size} series`;
+    resultEl.style.color = '#facc15';
+    showBookPanel(books.sort((a,b)=>(a.date||'').localeCompare(b.date||'')),
+      `Search: "${document.getElementById('series-search').value}" · ${books.length} books`, '#facc15');
+  } else {
+    resultEl.textContent = 'No matches';
+    resultEl.style.color = '#8b949e';
+    resetBookPanel();
   }
-  // Re-query DOM after each render; for simplicity, do full re-highlight
-  const matches = new Set();
-  DATA.forEach(b => {
-    if (!b.series) return;
-    if (b.series.toLowerCase().includes(q) ||
-        b.authors.toLowerCase().includes(q) ||
-        b.title.toLowerCase().includes(q)) matches.add(b.series);
-  });
-  // We can't easily tag series in the current render without re-rendering.
-  // Simpler approach: re-render with filter
-  resultEl.textContent = matches.size ? `${matches.size} matching series` : 'No matches';
-  resultEl.style.color = matches.size ? '#facc15' : '#8b949e';
-  // Highlight via opacity - we'd need to re-render to filter. For now just count.
 });
 
 // ─── Auto-load on startup if data already exists ───
