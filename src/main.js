@@ -247,6 +247,16 @@ function parseTsvToJson(tsvPath) {
     const dt = new Date(pd);
     if (isNaN(dt)) continue;
     const genres = row.genres || '';
+    // Parse date_added (when the book first landed in the library)
+    let dateAdded = '';
+    if (row.date_added) {
+      const da = new Date(row.date_added);
+      if (!isNaN(da)) dateAdded = da.toISOString().split('T')[0];
+    }
+    // Listening progress
+    const pct = parseFloat(row.percent_complete || '0') || 0;
+    const isFinished = (row.is_finished || '').toLowerCase() === 'true' || pct >= 99;
+
     books.push({
       title: row.title || '',
       authors: row.authors || '',
@@ -258,6 +268,9 @@ function parseTsvToJson(tsvPath) {
       date: dt.toISOString().split('T')[0],
       year: dt.getFullYear(),
       month: dt.getMonth() + 1,
+      date_added: dateAdded,
+      is_finished: isFinished,
+      percent_complete: pct,
       rating: row.rating || '',
       narrators: row.narrators || '',
       cover: row.cover_url || '',

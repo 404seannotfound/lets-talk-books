@@ -53,11 +53,26 @@ function getSeriesColorMap(books) {
   return map;
 }
 
+function progressLabel(d) {
+  if (d.is_finished) return '<span style="color:#3fb950">✓ Finished</span>';
+  const p = d.percent_complete || 0;
+  if (p === 0) return '<span style="color:#6e7681">Not started</span>';
+  return `<span style="color:#f59e0b">In progress · ${Math.round(p)}%</span>`;
+}
+
+// Dot opacity: finished books show at full opacity, unstarted/in-progress are dimmer.
+function bookOpacity(d, base = 0.9) {
+  if (d.is_finished) return base;
+  const p = d.percent_complete || 0;
+  if (p === 0) return base * 0.35;       // never started
+  return base * 0.6;                      // partially started
+}
+
 function bookTipHTML(d) {
   return `<div class="tt">${esc(d.title)}</div>`
     + `<div class="ta">${esc(d.authors)}</div>`
     + (d.series ? `<div class="ts">${esc(d.series)}${d.series_seq ? ' #'+d.series_seq : ''}</div>` : '')
-    + `<div class="td">${d.date} · ${Math.round(d.runtime_min/60)}h</div>`;
+    + `<div class="td">${d.date} · ${Math.round(d.runtime_min/60)}h · ${progressLabel(d)}</div>`;
 }
 
 // ═══════════════════════════════════════════
@@ -394,7 +409,14 @@ function renderAuthorTimeline() {
       if(sBooks.length>=2){const sorted=sBooks.sort((a,b)=>a.date.localeCompare(b.date));svg.append('line').attr('x1',x(new Date(sorted[0].date))).attr('x2',x(new Date(sorted[sorted.length-1].date))).attr('y1',bandY+bandH/2).attr('y2',bandY+bandH/2).attr('stroke',seriesColors[sName]).attr('stroke-opacity',0.35).attr('stroke-width',3);}
       if(sBooks.length>=3){const md=sBooks[Math.floor(sBooks.length/2)].date;svg.append('text').attr('class','series-label').attr('x',x(new Date(md))).attr('y',bandY+bandH/2-10).attr('text-anchor','middle').attr('fill',seriesColors[sName]).attr('font-size',9).attr('opacity',0.7).text(sName.length>20?sName.slice(0,18)+'…':sName);}
     });
-    svg.selectAll(null).data(books).enter().append('circle').attr('class','author-dot').attr('cx',d=>x(new Date(d.date))).attr('cy',bandY+bandH/2).attr('r',5).attr('fill',d=>d.series?seriesColors[d.series]:NO_SERIES_COLOR).attr('stroke',d=>d.series?seriesColors[d.series]:NO_SERIES_COLOR).attr('stroke-width',1).attr('opacity',d=>d.series?0.9:0.5).on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
+    svg.selectAll(null).data(books).enter().append('circle').attr('class','author-dot')
+      .attr('cx',d=>x(new Date(d.date))).attr('cy',bandY+bandH/2)
+      .attr('r',5)
+      .attr('fill',d=>d.is_finished ? (d.series?seriesColors[d.series]:NO_SERIES_COLOR) : 'none')
+      .attr('stroke',d=>d.series?seriesColors[d.series]:'#8b949e')
+      .attr('stroke-width', d => d.is_finished ? 1 : 1.5)
+      .attr('opacity', d => bookOpacity(d, d.series?0.95:0.7))
+      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
   });
 }
 
@@ -431,7 +453,12 @@ function renderSeriesTimeline() {
     const label=s.name.length>30?s.name.slice(0,28)+'…':s.name;
     svg.append('text').attr('x',margin.left-6).attr('y',bandY+bandH/2).attr('text-anchor','end').attr('dominant-baseline','middle').attr('fill',color).attr('font-size',11).text(`${label} (${s.count})`);
     if(s.books.length>1)svg.append('line').attr('x1',x(s.start)).attr('x2',x(s.end)).attr('y1',bandY+bandH/2).attr('y2',bandY+bandH/2).attr('stroke',color).attr('stroke-opacity',0.3).attr('stroke-width',3);
-    svg.selectAll(null).data(s.books).enter().append('circle').attr('class','author-dot').attr('cx',d=>x(new Date(d.date))).attr('cy',bandY+bandH/2).attr('r',4).attr('fill',color).attr('opacity',0.85).on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
+    svg.selectAll(null).data(s.books).enter().append('circle').attr('class','author-dot')
+      .attr('cx',d=>x(new Date(d.date))).attr('cy',bandY+bandH/2).attr('r',4)
+      .attr('fill', d => d.is_finished ? color : 'none')
+      .attr('stroke', color).attr('stroke-width', d => d.is_finished ? 0 : 1.5)
+      .attr('opacity', d => bookOpacity(d, 0.9))
+      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
   });
 }
 
@@ -490,7 +517,13 @@ function renderAuthorDots() {
     const seriesColors=getSeriesColorMap(books);
     const bandY=y(author),bandH=y.bandwidth();
     svg.append('text').attr('x',margin.left-6).attr('y',bandY+bandH/2).attr('text-anchor','end').attr('dominant-baseline','middle').attr('fill','#8b949e').attr('font-size',11).text(author);
-    svg.selectAll(null).data(books).enter().append('circle').attr('class','author-dot').attr('cx',d=>x(new Date(d.date))).attr('cy',bandY+bandH/2).attr('r',3.5).attr('fill',d=>d.series?seriesColors[d.series]:NO_SERIES_COLOR).attr('opacity',d=>d.series?0.85:0.4).on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
+    svg.selectAll(null).data(books).enter().append('circle').attr('class','author-dot')
+      .attr('cx',d=>x(new Date(d.date))).attr('cy',bandY+bandH/2).attr('r',3.5)
+      .attr('fill', d => d.is_finished ? (d.series?seriesColors[d.series]:NO_SERIES_COLOR) : 'none')
+      .attr('stroke', d => d.series?seriesColors[d.series]:NO_SERIES_COLOR)
+      .attr('stroke-width', d => d.is_finished ? 0 : 1.2)
+      .attr('opacity', d => bookOpacity(d, d.series?0.9:0.5))
+      .on('mouseover',(evt,d)=>showTip(evt,bookTipHTML(d))).on('mouseout',hideTip);
   });
 }
 
