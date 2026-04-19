@@ -79,3 +79,14 @@
   .layout { flex-direction: column; }
   .book-panel { width: 100%; max-height: 400px; border-left: none; border-top: 1px solid #21262d; }
 }
+
+/* Inline variant: panel takes the whole viz content area (used for "Recent" view). */
+.book-panel-inline {
+  width: 100%;
+  max-width: 820px;
+  max-height: none;
+  height: auto;
+  border-left: none;
+  margin: 0 auto;
+  padding: 0 16px 40px;
+}

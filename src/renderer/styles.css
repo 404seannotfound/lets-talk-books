@@ -131,6 +131,13 @@ a { color: #58a6ff; }
 .viz-split { display: flex; height: calc(100vh - 220px); }
 .viz-content { flex: 1; overflow: auto; padding: 16px 32px; min-width: 0; }
 .viz-content svg { display: block; }
+.sticky-axis {
+  position: sticky; top: 0; z-index: 3;
+  background: #0d1117;
+  border-bottom: 1px solid #21262d;
+  margin-bottom: 2px;
+}
+.sticky-axis svg { display: block; }
 #book-panel.book-panel {
   max-height: calc(100vh - 220px);
   height: calc(100vh - 220px);

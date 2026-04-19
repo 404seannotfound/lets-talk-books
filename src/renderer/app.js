@@ -183,6 +183,9 @@ document.querySelectorAll('.viz-tabs .tab').forEach(btn => {
     document.getElementById('genre-controls').style.display = v === 'stream' ? 'flex' : 'none';
     document.getElementById('series-controls').style.display = v === 'series' ? 'flex' : 'none';
     document.getElementById('af-controls').style.display = v === 'authorflow' ? 'flex' : 'none';
+    // Hide the right-side book panel on the Recent view — it uses its own inline panel instead.
+    const rightPanel = document.getElementById('book-panel');
+    if (rightPanel) rightPanel.style.display = v === 'recent' ? 'none' : '';
   });
 });
 // Initial control visibility

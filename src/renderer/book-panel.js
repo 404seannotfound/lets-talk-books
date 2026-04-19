@@ -74,9 +74,9 @@
    * @param {Object} opts - { groupBy: 'month'|'none', maxCount }
    */
   window.showBookPanel = function (books, title, swatchColor, opts = {}) {
-    const panel = document.getElementById(PANEL_ID);
+    const { groupBy = 'month', maxCount = 5000, containerId = PANEL_ID, sortDesc = false } = opts;
+    const panel = document.getElementById(containerId);
     if (!panel) return;
-    const { groupBy = 'month', maxCount = 300 } = opts;
 
     const showing = books.slice(0, maxCount);
     const swatch = swatchColor ? `<span class="swatch" style="background:${swatchColor}"></span>` : '';
@@ -99,6 +99,7 @@
         groups[g].push(b);
       });
       const sortedGroups = Object.keys(groups).sort();
+      if (sortDesc) sortedGroups.reverse();
       sortedGroups.forEach(g => {
         html += `<div class="panel-group">${escHtml(g)} · ${groups[g].length} book${groups[g].length === 1 ? '' : 's'}</div>`;
         html += groups[g].map(bookRow).join('');
@@ -108,12 +109,13 @@
     }
 
     panel.innerHTML = html;
-    panel.querySelector('.close').onclick = resetBookPanel;
+    const closeBtn = panel.querySelector('.close');
+    if (closeBtn) closeBtn.onclick = () => resetBookPanel(containerId);
     panel.scrollTop = 0;
   };
 
-  window.resetBookPanel = function () {
-    const panel = document.getElementById(PANEL_ID);
+  window.resetBookPanel = function (containerId = PANEL_ID) {
+    const panel = document.getElementById(containerId);
     if (!panel) return;
     panel.innerHTML = `
       <div class="panel-empty">

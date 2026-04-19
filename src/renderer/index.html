@@ -148,6 +148,7 @@
     <button class="tab" data-view="authors">Author Timeline</button>
     <button class="tab" data-view="series">Series Timeline</button>
     <button class="tab" data-view="authordots">All Authors</button>
+    <button class="tab" data-view="recent">Recent</button>
   </div>
 
   <div class="viz-controls">
@@ -164,7 +165,7 @@
     <div id="series-controls" style="display:none">
       <label>Search: <input type="text" id="series-search" placeholder="Find a series..."></label>
       <span id="series-search-result"></span>
-      <label>Min books: <select id="series-min"><option value="3">3+</option><option value="5" selected>5+</option><option value="8">8+</option><option value="10">10+</option></select></label>
+      <label>Min books: <select id="series-min"><option value="1">1+ (all)</option><option value="2">2+</option><option value="3">3+</option><option value="5" selected>5+</option><option value="8">8+</option><option value="10">10+</option></select></label>
       <label>Sort: <select id="series-sort"><option value="count">Most books</option><option value="start">Earliest start</option><option value="span">Longest span</option></select></label>
     </div>
     <div id="af-controls" style="display:none">
@@ -197,6 +198,7 @@
       <div id="view-authors" style="display:none"><div id="author-timeline"></div></div>
       <div id="view-series" style="display:none"><div id="series-timeline"></div></div>
       <div id="view-authordots" style="display:none"><div id="authordots-chart"></div></div>
+      <div id="view-recent" style="display:none"><div id="recent-chart"></div></div>
     </div>
     <div id="book-panel" class="book-panel">
       <div class="panel-empty">

@@ -456,17 +456,24 @@ function renderSeriesTimeline() {
   if(sortBy==='count')seriesList.sort((a,b)=>b.count-a.count);
   else if(sortBy==='start')seriesList.sort((a,b)=>a.start-b.start);
   else seriesList.sort((a,b)=>b.spanDays-a.spanDays);
-  seriesList=seriesList.slice(0,60);
-  const margin={top:20,right:30,bottom:40,left:260};
+  // Show all series that pass the min-books filter (previously capped at 60).
+  const margin={top:4,right:30,bottom:20,left:260};
+  const axisH=28;
   const width=Math.max(900,window.innerWidth-100);
   const rowH=24;
   const height=margin.top+margin.bottom+seriesList.length*rowH;
-  const svg=container.append('svg').attr('width',width).attr('height',height);
   const allDates=DATA.map(b=>new Date(b.date));
   const x=d3.scaleTime().domain([d3.min(allDates),d3.max(allDates)]).range([margin.left,width-margin.right]);
   const y=d3.scaleBand().domain(seriesList.map(s=>s.name)).range([margin.top,height-margin.bottom]).padding(0.25);
+
+  // Sticky x-axis header — stays visible as you scroll through 700 series.
+  const axisDiv=container.append('div').attr('class','sticky-axis');
+  const axisSvg=axisDiv.append('svg').attr('width',width).attr('height',axisH);
+  axisSvg.append('g').attr('class','axis').attr('transform',`translate(0,${axisH-1})`)
+    .call(d3.axisTop(x).ticks(d3.timeYear.every(2)).tickFormat(d3.timeFormat('%Y')));
+
+  const svg=container.append('svg').attr('width',width).attr('height',height);
   svg.append('g').attr('class','grid').attr('transform',`translate(0,${height-margin.bottom})`).call(d3.axisBottom(x).ticks(d3.timeYear.every(2)).tickSize(-(height-margin.top-margin.bottom)).tickFormat(''));
-  svg.append('g').attr('class','axis').attr('transform',`translate(0,${height-margin.bottom})`).call(d3.axisBottom(x).ticks(d3.timeYear.every(2)).tickFormat(d3.timeFormat('%Y')));
   seriesList.forEach((s,i)=>{
     const color=SERIES_PALETTE[i%SERIES_PALETTE.length];
     const bandY=y(s.name),bandH=y.bandwidth();
@@ -538,17 +545,26 @@ function renderAuthorDots() {
   container.selectAll('*').remove();
   const authorCounts={};
   DATA.forEach(b=>b.authors.split(',').forEach(a=>{a=a.trim();if(a)authorCounts[a]=(authorCounts[a]||0)+1;}));
-  const top=Object.entries(authorCounts).sort((a,b)=>b[1]-a[1]).slice(0,40).map(e=>e[0]);
-  const margin={top:20,right:30,bottom:40,left:180};
+  // Show every author with 2+ books. With 2,800+ books, that's still ~300 authors,
+  // but it's the right ceiling — previously capped at top 40.
+  const top=Object.entries(authorCounts).filter(([,c])=>c>=2).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
+  const margin={top:4,right:30,bottom:20,left:180};
+  const axisH=28;
   const width=Math.max(900,window.innerWidth-100);
   const rowH=24;
   const height=margin.top+margin.bottom+top.length*rowH;
-  const svg=container.append('svg').attr('width',width).attr('height',height);
   const allDates=DATA.map(b=>new Date(b.date));
   const x=d3.scaleTime().domain([d3.min(allDates),d3.max(allDates)]).range([margin.left,width-margin.right]);
   const y=d3.scaleBand().domain(top).range([margin.top,height-margin.bottom]).padding(0.2);
+
+  // Sticky x-axis header
+  const axisDiv=container.append('div').attr('class','sticky-axis');
+  const axisSvg=axisDiv.append('svg').attr('width',width).attr('height',axisH);
+  axisSvg.append('g').attr('class','axis').attr('transform',`translate(0,${axisH-1})`)
+    .call(d3.axisTop(x).ticks(d3.timeYear.every(2)).tickFormat(d3.timeFormat('%Y')));
+
+  const svg=container.append('svg').attr('width',width).attr('height',height);
   svg.append('g').attr('class','grid').attr('transform',`translate(0,${height-margin.bottom})`).call(d3.axisBottom(x).ticks(d3.timeYear.every(2)).tickSize(-(height-margin.top-margin.bottom)).tickFormat(''));
-  svg.append('g').attr('class','axis').attr('transform',`translate(0,${height-margin.bottom})`).call(d3.axisBottom(x).ticks(d3.timeYear.every(2)).tickFormat(d3.timeFormat('%Y')));
   top.forEach((author,i)=>{
     const books=DATA.filter(b=>b.authors.split(',').map(a=>a.trim()).includes(author)).sort((a,b)=>a.date.localeCompare(b.date));
     const seriesColors=getSeriesColorMap(books);
@@ -596,7 +612,7 @@ searchInput.addEventListener('input', () => {
 document.addEventListener('click',e=>{if(!searchResults.contains(e.target)&&e.target!==searchInput)searchResults.style.display='none';});
 
 // ─── View switching ───
-const views = ['authorflow','stream','authors','series','authordots'];
+const views = ['authorflow','stream','authors','series','authordots','recent'];
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
@@ -619,6 +635,24 @@ function render() {
   else if (currentView==='authors') renderAuthorTimeline();
   else if (currentView==='series') renderSeriesTimeline();
   else if (currentView==='authordots') renderAuthorDots();
+  else if (currentView==='recent') renderRecent();
+}
+
+function renderRecent() {
+  const container = document.getElementById('recent-chart');
+  if (!container) return;
+  // Ensure the inline panel div exists
+  if (!container.querySelector('.book-panel')) {
+    container.innerHTML = '<div id="recent-panel" class="book-panel book-panel-inline"></div>';
+  }
+  const recent = DATA.slice()
+    .sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+  showBookPanel(recent, `Most recent · ${recent.length} books`, '#58a6ff', {
+    groupBy: 'month',
+    sortDesc: true,
+    maxCount: 5000,
+    containerId: 'recent-panel'
+  });
 }
 
 function initViz(data) {
