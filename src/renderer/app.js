@@ -163,6 +163,12 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
   showScreen('screen-welcome');
 });
 
+document.getElementById('btn-reauth').addEventListener('click', async () => {
+  if (!confirm('Sign out of Audible and reconnect? This will open your browser to log in again.')) return;
+  await window.api.clearAuth();
+  showScreen('screen-login');
+});
+
 // ─── Tab/control visibility wiring for the new controls ───
 // The tab click handler is inside viz.js but we need to sync new control panels
 document.querySelectorAll('.viz-tabs .tab').forEach(btn => {

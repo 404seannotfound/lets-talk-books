@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   exportLibrary: () => ipcRenderer.invoke('export-library'),
   loadLibrary: () => ipcRenderer.invoke('load-library'),
   clearData: () => ipcRenderer.invoke('clear-data'),
+  clearAuth: () => ipcRenderer.invoke('clear-auth'),
   openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
 
   onInstallProgress: (cb) => ipcRenderer.on('install-progress', (_, data) => cb(data)),

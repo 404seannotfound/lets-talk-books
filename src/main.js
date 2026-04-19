@@ -180,6 +180,19 @@ ipcMain.handle('clear-data', async () => {
   return true;
 });
 
+// ─── IPC: clear just the Audible auth (force re-login) ───
+ipcMain.handle('clear-auth', async () => {
+  const audibleDir = path.join(os.homedir(), '.audible');
+  if (fs.existsSync(audibleDir)) {
+    // Remove audible.json and config.toml but keep the folder
+    for (const f of ['audible.json', 'config.toml']) {
+      const fp = path.join(audibleDir, f);
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    }
+  }
+  return true;
+});
+
 // ─── IPC: open data folder ───
 ipcMain.handle('open-data-folder', async () => {
   shell.openPath(USER_DATA_DIR);
@@ -235,7 +248,9 @@ async function checkAudibleProfile() {
 
 function parseTsvToJson(tsvPath) {
   const raw = fs.readFileSync(tsvPath, 'utf8');
-  const lines = raw.split('\n').filter(l => l.length > 0);
+  // Normalize line endings — audible-cli can emit CRLF, which would leave a \r
+  // on every last column (including the header) and break field lookup.
+  const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '').split('\n').filter(l => l.length > 0);
   const headers = lines[0].split('\t');
   const books = [];
   for (let i = 1; i < lines.length; i++) {
