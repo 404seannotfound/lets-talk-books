@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Let's Talk Books</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ─── Welcome Screen ─── -->
+<div id="screen-welcome" class="screen active">
+  <div class="welcome-hero">
+    <div class="welcome-emoji">📚</div>
+    <h1>Let's Talk Books</h1>
+    <p class="welcome-sub">Map your Audible listening as streamgraphs over time</p>
+    <div class="welcome-preview">
+      <div class="preview-col">
+        <div class="preview-stat"><span class="n">26</span> years of history</div>
+        <div class="preview-stat"><span class="n">Every</span> book & series</div>
+        <div class="preview-stat"><span class="n">Authors</span> colored by genre</div>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-large" id="btn-start">Get Started</button>
+    <div class="welcome-privacy">
+      <span>🔒</span> Your data stays on your computer. We never see your Audible account.
+    </div>
+  </div>
+</div>
+
+<!-- ─── Setup Check Screen ─── -->
+<div id="screen-setup" class="screen">
+  <div class="setup-container">
+    <h2>Setting Up</h2>
+    <p class="setup-sub">Let's Talk Books needs a small helper tool to fetch your library.</p>
+
+    <div class="check-list">
+      <div class="check-item" id="check-python">
+        <div class="check-icon">⏳</div>
+        <div class="check-info">
+          <div class="check-name">Python 3</div>
+          <div class="check-desc">Runs the Audible helper</div>
+        </div>
+        <div class="check-status">Checking...</div>
+      </div>
+      <div class="check-item" id="check-audible">
+        <div class="check-icon">⏳</div>
+        <div class="check-info">
+          <div class="check-name">audible-cli</div>
+          <div class="check-desc">Open-source tool to fetch your library</div>
+        </div>
+        <div class="check-status">Checking...</div>
+      </div>
+    </div>
+
+    <div id="setup-python-help" class="setup-help hidden">
+      <h3>Python 3 is required</h3>
+      <p>Please install Python 3 from <a href="#" data-ext="https://www.python.org/downloads/">python.org</a> and then restart this app.</p>
+      <button class="btn" id="btn-recheck-python">Re-check</button>
+    </div>
+
+    <div id="setup-install" class="setup-help hidden">
+      <h3>Install audible-cli</h3>
+      <p>This is a one-time install that lets this app fetch your library safely.</p>
+      <button class="btn btn-primary" id="btn-install">Install audible-cli</button>
+      <pre class="log" id="install-log"></pre>
+    </div>
+
+    <div id="setup-ready" class="setup-help hidden">
+      <h3>✓ Everything is ready</h3>
+      <p>Next step: sign in to your Audible account.</p>
+      <button class="btn btn-primary" id="btn-to-login">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Login Screen ─── -->
+<div id="screen-login" class="screen">
+  <div class="setup-container">
+    <h2>Connect to Audible</h2>
+    <p class="setup-sub">We'll open your web browser so you can sign in with Amazon — exactly like you would on audible.com.</p>
+
+    <div class="info-box">
+      <strong>What happens:</strong>
+      <ol>
+        <li>A Chrome/Safari window opens on audible.com</li>
+        <li>You log in normally (2FA, captcha, whatever Amazon asks)</li>
+        <li>After login, Amazon shows an error page — that's expected. Copy the URL from your browser.</li>
+        <li>Paste the URL back here to finish.</li>
+      </ol>
+    </div>
+
+    <label class="field">
+      <span>Your Audible region</span>
+      <select id="country">
+        <option value="us" selected>United States (audible.com)</option>
+        <option value="uk">United Kingdom (audible.co.uk)</option>
+        <option value="de">Germany (audible.de)</option>
+        <option value="ca">Canada (audible.ca)</option>
+        <option value="au">Australia (audible.com.au)</option>
+        <option value="fr">France (audible.fr)</option>
+        <option value="it">Italy (audible.it)</option>
+        <option value="jp">Japan (audible.co.jp)</option>
+        <option value="es">Spain (audible.es)</option>
+        <option value="in">India (audible.in)</option>
+      </select>
+    </label>
+
+    <button class="btn btn-primary btn-large" id="btn-login">Open Login in Browser</button>
+    <pre class="log hidden" id="login-log"></pre>
+  </div>
+</div>
+
+<!-- ─── Export Screen ─── -->
+<div id="screen-export" class="screen">
+  <div class="setup-container">
+    <h2>Fetching Your Library</h2>
+    <p class="setup-sub" id="export-sub">Downloading book data from Audible — this usually takes 30 seconds to a few minutes.</p>
+    <div class="spinner" id="export-spinner"></div>
+    <pre class="log" id="export-log"></pre>
+    <button class="btn btn-primary hidden" id="btn-to-viz" style="margin-top: 24px">See Your Map &rarr;</button>
+  </div>
+</div>
+
+<!-- ─── Visualization Screen ─── -->
+<div id="screen-viz" class="screen">
+  <div class="viz-header">
+    <h1>Your Audible Library</h1>
+    <div class="viz-sub" id="viz-sub">—</div>
+    <div class="stats">
+      <div class="stat"><div class="n" id="s-books">—</div><div class="l">Books</div></div>
+      <div class="stat"><div class="n" id="s-hours">—</div><div class="l">Hours</div></div>
+      <div class="stat"><div class="n" id="s-authors">—</div><div class="l">Authors</div></div>
+      <div class="stat"><div class="n" id="s-series">—</div><div class="l">Series</div></div>
+    </div>
+    <div class="viz-actions">
+      <button class="btn btn-sm" id="btn-refresh">Refresh from Audible</button>
+      <button class="btn btn-sm btn-ghost" id="btn-data-folder">Open data folder</button>
+      <button class="btn btn-sm btn-ghost" id="btn-reset">Start over</button>
+    </div>
+  </div>
+
+  <div class="viz-tabs">
+    <button class="tab active" data-view="authorflow">Author Flow</button>
+    <button class="tab" data-view="stream">Genre Flow</button>
+    <button class="tab" data-view="authors">Author Timeline</button>
+    <button class="tab" data-view="series">Series Timeline</button>
+    <button class="tab" data-view="authordots">All Authors</button>
+  </div>
+
+  <div class="viz-controls">
+    <div id="author-controls" style="display:none">
+      <label>Add author: <input type="text" id="author-search" placeholder="Type author name..."></label>
+      <div id="author-search-results"></div>
+      <div class="selected-authors" id="selected-authors"></div>
+    </div>
+    <div id="genre-controls" style="display:none">
+      <label>Search: <input type="text" id="gf-search" placeholder="Find a book or author..."></label>
+      <span id="gf-search-result"></span>
+      <label>Highlight: <select id="genre-highlight"><option value="">All genres</option></select></label>
+    </div>
+    <div id="series-controls" style="display:none">
+      <label>Search: <input type="text" id="series-search" placeholder="Find a series..."></label>
+      <span id="series-search-result"></span>
+      <label>Min books: <select id="series-min"><option value="3">3+</option><option value="5" selected>5+</option><option value="8">8+</option><option value="10">10+</option></select></label>
+      <label>Sort: <select id="series-sort"><option value="count">Most books</option><option value="start">Earliest start</option><option value="span">Longest span</option></select></label>
+    </div>
+    <div id="af-controls" style="display:none">
+      <label>Search: <input type="text" id="af-search" placeholder="Find a book or author..."></label>
+      <span id="af-search-result"></span>
+    </div>
+  </div>
+
+  <div class="viz-content">
+    <div id="view-authorflow">
+      <div class="author-flow-layout">
+        <div class="author-sidebar" id="author-sidebar">
+          <div class="sidebar-search"><input type="text" id="sidebar-filter" placeholder="Filter authors..."></div>
+          <div class="sidebar-actions">
+            <button class="qbtn" id="btn-top20">Top 20</button>
+            <button class="qbtn" id="btn-top50">Top 50</button>
+            <button class="qbtn" id="btn-all">All</button>
+            <button class="qbtn" id="btn-none">None</button>
+          </div>
+          <div id="sidebar-genres"></div>
+        </div>
+        <div class="author-flow-main"><div id="authorflow-chart"></div></div>
+      </div>
+    </div>
+    <div id="view-stream" style="display:none">
+      <div id="genre-legend" class="legend"></div>
+      <div id="stream-chart"></div>
+    </div>
+    <div id="view-authors" style="display:none"><div id="author-timeline"></div></div>
+    <div id="view-series" style="display:none"><div id="series-timeline"></div></div>
+    <div id="view-authordots" style="display:none"><div id="authordots-chart"></div></div>
+  </div>
+</div>
+
+<div class="tip" id="tooltip"></div>
+
+<script src="viz.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
