@@ -258,6 +258,7 @@ function parseTsvToJson(tsvPath) {
     const isFinished = (row.is_finished || '').toLowerCase() === 'true' || pct >= 99;
 
     books.push({
+      asin: row.asin || '',
       title: row.title || '',
       authors: row.authors || '',
       series: row.series_title || '',
