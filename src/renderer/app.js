@@ -140,7 +140,12 @@ document.getElementById('btn-to-viz').addEventListener('click', loadAndShowViz);
 async function loadAndShowViz() {
   const data = await window.api.loadLibrary();
   if (!data || !data.length) {
-    showScreen('screen-welcome');
+    // Cached library is empty/broken — delete it so we don't loop,
+    // then let the user go fetch a fresh one.
+    await window.api.clearData();
+    const status = await window.api.checkStatus();
+    showScreen('screen-setup');
+    renderSetup(status);
     return;
   }
   showScreen('screen-viz');

@@ -1,6 +1,6 @@
 {
   "name": "lets-talk-books",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Map your 26 years of Audible listening as interactive streamgraphs over time",
   "main": "src/main.js",
   "scripts": {

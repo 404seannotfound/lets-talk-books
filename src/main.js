@@ -54,7 +54,17 @@ app.on('activate', () => {
 ipcMain.handle('check-status', async () => {
   const pythonAvailable = await findPython() !== null;
   const audibleAvailable = fs.existsSync(AUDIBLE_BIN);
-  const libraryExists = fs.existsSync(LIBRARY_JSON);
+  // libraryExists = file present AND has at least one book. A 2-byte "[]" file
+  // from a failed export shouldn't be treated as "we have a library."
+  let libraryExists = false;
+  if (fs.existsSync(LIBRARY_JSON)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(LIBRARY_JSON, 'utf8'));
+      libraryExists = Array.isArray(data) && data.length > 0;
+    } catch (_) {
+      libraryExists = false;
+    }
+  }
   const profileExists = await checkAudibleProfile();
   return { pythonAvailable, audibleAvailable, libraryExists, profileExists };
 });
