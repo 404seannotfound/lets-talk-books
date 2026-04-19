@@ -82,7 +82,7 @@ document.getElementById('btn-install').addEventListener('click', async (e) => {
     const status = await window.api.checkStatus();
     renderSetup(status);
   } else {
-    log.textContent += '\n\nInstallation failed. If you see "externally-managed-environment", try running this in a terminal:\n\n  pip3 install --user --break-system-packages audible-cli\n\nThen come back and click Re-check.';
+    log.textContent += '\n\nInstallation failed. See errors above. You can click "Install audible-cli" again to retry.';
   }
 });
 

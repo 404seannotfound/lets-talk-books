@@ -3,3 +3,7 @@ dist/
 .DS_Store
 *.log
 resume_claude_*.sh
+audible.data.json
+library_data.json
+library.tsv
+venv/

@@ -7,6 +7,16 @@ const { spawn, execSync } = require('child_process');
 const USER_DATA_DIR = app.getPath('userData');
 const LIBRARY_JSON = path.join(USER_DATA_DIR, 'library_data.json');
 const LIBRARY_TSV = path.join(USER_DATA_DIR, 'library.tsv');
+const VENV_DIR = path.join(USER_DATA_DIR, 'venv');
+const VENV_AUDIBLE = path.join(VENV_DIR, 'bin', 'audible');
+const VENV_PYTHON = path.join(VENV_DIR, 'bin', 'python');
+const VENV_PIP = path.join(VENV_DIR, 'bin', 'pip');
+
+// Windows uses Scripts/ instead of bin/ and .exe suffixes
+const IS_WIN = process.platform === 'win32';
+const AUDIBLE_BIN = IS_WIN ? path.join(VENV_DIR, 'Scripts', 'audible.exe') : VENV_AUDIBLE;
+const PYTHON_BIN = IS_WIN ? path.join(VENV_DIR, 'Scripts', 'python.exe') : VENV_PYTHON;
+const PIP_BIN = IS_WIN ? path.join(VENV_DIR, 'Scripts', 'pip.exe') : VENV_PIP;
 
 let mainWindow;
 
@@ -42,29 +52,52 @@ app.on('activate', () => {
 
 // ─── IPC: status check ───
 ipcMain.handle('check-status', async () => {
-  const pythonAvailable = await checkCommand('python3', ['--version']);
-  const audibleAvailable = await checkCommand('audible', ['--version']);
+  const pythonAvailable = await findPython() !== null;
+  const audibleAvailable = fs.existsSync(AUDIBLE_BIN);
   const libraryExists = fs.existsSync(LIBRARY_JSON);
   const profileExists = await checkAudibleProfile();
   return { pythonAvailable, audibleAvailable, libraryExists, profileExists };
 });
 
-// ─── IPC: install audible-cli ───
+// ─── IPC: install audible-cli into a dedicated venv ───
 ipcMain.handle('install-audible-cli', async (event) => {
-  return new Promise((resolve) => {
-    const proc = spawn('pip3', ['install', '--user', 'audible-cli'], { shell: false });
-    let output = '';
-    proc.stdout.on('data', d => {
-      output += d.toString();
-      event.sender.send('install-progress', d.toString());
-    });
-    proc.stderr.on('data', d => {
-      output += d.toString();
-      event.sender.send('install-progress', d.toString());
-    });
-    proc.on('close', code => resolve({ success: code === 0, output }));
-    proc.on('error', err => resolve({ success: false, output: err.message }));
-  });
+  const log = (msg) => event.sender.send('install-progress', msg);
+
+  // Step 1: find a working Python
+  const python = await findPython();
+  if (!python) {
+    return { success: false, output: 'Python 3 not found on this system.' };
+  }
+  log(`Using Python: ${python}\n`);
+
+  // Step 2: create the venv if it doesn't exist
+  if (!fs.existsSync(VENV_DIR)) {
+    log(`Creating isolated environment in:\n  ${VENV_DIR}\n\n`);
+    const venvResult = await runStreamed(python, ['-m', 'venv', VENV_DIR], log);
+    if (!venvResult.success) {
+      return { success: false, output: 'Failed to create virtual environment.\n' + venvResult.output };
+    }
+  } else {
+    log('Virtual environment already exists. Reusing it.\n\n');
+  }
+
+  // Step 3: upgrade pip (often needed)
+  log('Upgrading pip...\n');
+  await runStreamed(PIP_BIN, ['install', '--upgrade', 'pip', '--quiet'], log);
+
+  // Step 4: install audible-cli
+  log('\nInstalling audible-cli...\n');
+  const installResult = await runStreamed(PIP_BIN, ['install', 'audible-cli'], log);
+  if (!installResult.success) {
+    return { success: false, output: installResult.output };
+  }
+
+  // Step 5: verify
+  if (fs.existsSync(AUDIBLE_BIN)) {
+    log('\n✓ Ready.\n');
+    return { success: true, output: installResult.output };
+  }
+  return { success: false, output: 'audible binary not found after install.' };
 });
 
 // ─── IPC: login flow (opens external browser) ───
@@ -85,7 +118,7 @@ ipcMain.handle('start-login', async (event, { country }) => {
       'y',             // continue
     ].join('\n') + '\n';
 
-    const proc = spawn('audible', ['quickstart'], { shell: false });
+    const proc = spawn(AUDIBLE_BIN, ['quickstart'], { shell: false });
     let output = '';
     proc.stdout.on('data', d => {
       output += d.toString();
@@ -107,7 +140,7 @@ ipcMain.handle('start-login', async (event, { country }) => {
 ipcMain.handle('export-library', async (event) => {
   return new Promise((resolve) => {
     event.sender.send('export-progress', 'Fetching your library from Audible...\n');
-    const proc = spawn('audible', ['library', 'export', '--output', LIBRARY_TSV], { shell: false });
+    const proc = spawn(AUDIBLE_BIN, ['library', 'export', '--output', LIBRARY_TSV], { shell: false });
     let output = '';
     proc.stdout.on('data', d => {
       output += d.toString();
@@ -161,6 +194,37 @@ function checkCommand(cmd, args) {
     const proc = spawn(cmd, args, { shell: false });
     proc.on('close', code => resolve(code === 0));
     proc.on('error', () => resolve(false));
+  });
+}
+
+// Find a usable python3 on PATH. Tries common names.
+async function findPython() {
+  const candidates = IS_WIN
+    ? ['python', 'py', 'python3']
+    : ['python3', 'python3.12', 'python3.11', 'python3.10', 'python'];
+  for (const candidate of candidates) {
+    // Check if it exists and can run venv
+    const works = await new Promise((resolve) => {
+      const p = spawn(candidate, ['-c', 'import venv; print("ok")'], { shell: false });
+      let out = '';
+      p.stdout.on('data', d => { out += d.toString(); });
+      p.on('close', code => resolve(code === 0 && out.includes('ok')));
+      p.on('error', () => resolve(false));
+    });
+    if (works) return candidate;
+  }
+  return null;
+}
+
+// Spawn a process and stream output back via callback; resolves with {success, output}
+function runStreamed(cmd, args, log) {
+  return new Promise((resolve) => {
+    const proc = spawn(cmd, args, { shell: false });
+    let output = '';
+    proc.stdout.on('data', d => { const s = d.toString(); output += s; log(s); });
+    proc.stderr.on('data', d => { const s = d.toString(); output += s; log(s); });
+    proc.on('close', code => resolve({ success: code === 0, output }));
+    proc.on('error', err => resolve({ success: false, output: err.message }));
   });
 }
 
