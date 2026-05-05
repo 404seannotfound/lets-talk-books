@@ -123,6 +123,9 @@ ipcMain.handle('start-login', async (event, { country }) => {
       'y',             // continue
     ];
     let answerIndex = 0;
+    let capturedRedirectUrl = null;
+    let waitingForUrl = false;
+    let loginWindow = null;
 
     const proc = spawn(AUDIBLE_BIN, ['quickstart'], { shell: IS_WIN });
     let output = '';
@@ -133,12 +136,67 @@ ipcMain.handle('start-login', async (event, { country }) => {
       }
     }
 
+    function feedRedirectUrl() {
+      if (capturedRedirectUrl && waitingForUrl && !proc.stdin.destroyed) {
+        proc.stdin.write(capturedRedirectUrl + '\n');
+        capturedRedirectUrl = null;
+        waitingForUrl = false;
+      }
+    }
+
+    function openLoginWindow(url) {
+      loginWindow = new BrowserWindow({
+        width: 460,
+        height: 700,
+        title: 'Sign in to Audible',
+        autoHideMenuBar: true,
+        webPreferences: { nodeIntegration: false, contextIsolation: true },
+      });
+      loginWindow.loadURL(url);
+
+      loginWindow.webContents.on('will-redirect', (evt, redirectUrl) => {
+        if (redirectUrl.includes('/ap/maplanding')) {
+          capturedRedirectUrl = redirectUrl;
+          event.sender.send('login-progress', '\nLogin successful, finishing setup...\n');
+          loginWindow.close();
+          loginWindow = null;
+          feedRedirectUrl();
+        }
+      });
+
+      loginWindow.webContents.on('will-navigate', (evt, navUrl) => {
+        if (navUrl.includes('/ap/maplanding')) {
+          capturedRedirectUrl = navUrl;
+          event.sender.send('login-progress', '\nLogin successful, finishing setup...\n');
+          loginWindow.close();
+          loginWindow = null;
+          feedRedirectUrl();
+        }
+      });
+
+      loginWindow.on('closed', () => {
+        loginWindow = null;
+      });
+    }
+
     proc.stdout.on('data', d => {
       const chunk = d.toString();
       output += chunk;
       event.sender.send('login-progress', chunk);
-      // Feed the next answer whenever a prompt appears (line ending with ?: or ]:)
-      if (/[?:]\s*$/.test(chunk)) {
+
+      // Detect the Amazon OAuth URL and open it in an Electron window
+      const urlMatch = chunk.match(/(https:\/\/www\.amazon\.[^\s]+)/);
+      if (urlMatch && !loginWindow) {
+        openLoginWindow(urlMatch[1]);
+      }
+
+      // Detect the "paste the url" prompt — feed the captured redirect
+      if (/please insert the copied url/i.test(output)) {
+        waitingForUrl = true;
+        feedRedirectUrl();
+      }
+      // Feed answers to regular prompts (ending with ?: or ]:)
+      else if (/[?:]\s*$/.test(chunk)) {
         feedNext();
       }
     });
@@ -146,8 +204,14 @@ ipcMain.handle('start-login', async (event, { country }) => {
       output += d.toString();
       event.sender.send('login-progress', d.toString());
     });
-    proc.on('close', code => resolve({ success: code === 0, output }));
-    proc.on('error', err => resolve({ success: false, output: err.message }));
+    proc.on('close', code => {
+      if (loginWindow) { loginWindow.close(); loginWindow = null; }
+      resolve({ success: code === 0, output });
+    });
+    proc.on('error', err => {
+      if (loginWindow) { loginWindow.close(); loginWindow = null; }
+      resolve({ success: false, output: err.message });
+    });
   });
 });
 

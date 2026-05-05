@@ -93,7 +93,7 @@ document.getElementById('btn-to-login').addEventListener('click', () => {
 // ─── Login ───
 document.getElementById('btn-login').addEventListener('click', async (e) => {
   e.target.disabled = true;
-  e.target.textContent = 'Opening browser...';
+  e.target.textContent = 'Signing in...';
   const log = document.getElementById('login-log');
   log.textContent = '';
   log.classList.remove('hidden');
@@ -104,7 +104,7 @@ document.getElementById('btn-login').addEventListener('click', async (e) => {
   const country = document.getElementById('country').value;
   const result = await window.api.startLogin({ country });
   e.target.disabled = false;
-  e.target.textContent = 'Open Login in Browser';
+  e.target.textContent = 'Sign in to Audible';
   if (result.success) {
     showScreen('screen-export');
     doExport();
