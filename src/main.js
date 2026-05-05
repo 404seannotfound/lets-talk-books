@@ -112,12 +112,7 @@ ipcMain.handle('install-audible-cli', async (event) => {
 
 // ─── IPC: login flow (opens external browser) ───
 ipcMain.handle('start-login', async (event, { country }) => {
-  // Run `audible manage auth-file add` non-interactively-ish
-  // We need to create a profile. Use quickstart with predefined answers.
   return new Promise((resolve) => {
-    // Using external browser login:
-    // We write a config.toml ourselves and run `audible manage auth-file add`
-    // Actually, simpler: run quickstart and feed answers via stdin
     const answers = [
       '',              // profile name (default: audible)
       country || 'us', // country code
@@ -126,13 +121,26 @@ ipcMain.handle('start-login', async (event, { country }) => {
       'y',             // external browser
       'N',             // pre-amazon account
       'y',             // continue
-    ].join('\n') + '\n';
+    ];
+    let answerIndex = 0;
 
-    const proc = spawn(AUDIBLE_BIN, ['quickstart'], { shell: false });
+    const proc = spawn(AUDIBLE_BIN, ['quickstart'], { shell: IS_WIN });
     let output = '';
+
+    function feedNext() {
+      if (answerIndex < answers.length && !proc.stdin.destroyed) {
+        proc.stdin.write(answers[answerIndex++] + '\n');
+      }
+    }
+
     proc.stdout.on('data', d => {
-      output += d.toString();
-      event.sender.send('login-progress', d.toString());
+      const chunk = d.toString();
+      output += chunk;
+      event.sender.send('login-progress', chunk);
+      // Feed the next answer whenever a prompt appears (line ending with ?: or ]:)
+      if (/[?:]\s*$/.test(chunk)) {
+        feedNext();
+      }
     });
     proc.stderr.on('data', d => {
       output += d.toString();
@@ -140,9 +148,6 @@ ipcMain.handle('start-login', async (event, { country }) => {
     });
     proc.on('close', code => resolve({ success: code === 0, output }));
     proc.on('error', err => resolve({ success: false, output: err.message }));
-
-    proc.stdin.write(answers);
-    proc.stdin.end();
   });
 });
 
@@ -150,7 +155,7 @@ ipcMain.handle('start-login', async (event, { country }) => {
 ipcMain.handle('export-library', async (event) => {
   return new Promise((resolve) => {
     event.sender.send('export-progress', 'Fetching your library from Audible...\n');
-    const proc = spawn(AUDIBLE_BIN, ['library', 'export', '--output', LIBRARY_TSV], { shell: false });
+    const proc = spawn(AUDIBLE_BIN, ['library', 'export', '--output', LIBRARY_TSV], { shell: IS_WIN });
     let output = '';
     proc.stdout.on('data', d => {
       output += d.toString();
@@ -214,7 +219,7 @@ ipcMain.handle('open-data-folder', async () => {
 // ─── Helpers ───
 function checkCommand(cmd, args) {
   return new Promise((resolve) => {
-    const proc = spawn(cmd, args, { shell: false });
+    const proc = spawn(cmd, args, { shell: IS_WIN });
     proc.on('close', code => resolve(code === 0));
     proc.on('error', () => resolve(false));
   });
@@ -226,9 +231,8 @@ async function findPython() {
     ? ['python', 'py', 'python3']
     : ['python3', 'python3.12', 'python3.11', 'python3.10', 'python'];
   for (const candidate of candidates) {
-    // Check if it exists and can run venv
     const works = await new Promise((resolve) => {
-      const p = spawn(candidate, ['-c', 'import venv; print("ok")'], { shell: false });
+      const p = spawn(candidate, ['-c', 'import venv; print("ok")'], { shell: IS_WIN });
       let out = '';
       p.stdout.on('data', d => { out += d.toString(); });
       p.on('close', code => resolve(code === 0 && out.includes('ok')));
@@ -242,7 +246,7 @@ async function findPython() {
 // Spawn a process and stream output back via callback; resolves with {success, output}
 function runStreamed(cmd, args, log) {
   return new Promise((resolve) => {
-    const proc = spawn(cmd, args, { shell: false });
+    const proc = spawn(cmd, args, { shell: IS_WIN });
     let output = '';
     proc.stdout.on('data', d => { const s = d.toString(); output += s; log(s); });
     proc.stderr.on('data', d => { const s = d.toString(); output += s; log(s); });
